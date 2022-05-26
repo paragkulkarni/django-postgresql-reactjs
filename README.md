@@ -1,1 +1,2 @@
-"# django-postgresql-reactjs" 
+"# django-postgresql-reactjs" \
+Create virtual environment for django
