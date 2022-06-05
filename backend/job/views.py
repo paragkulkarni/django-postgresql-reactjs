@@ -1,16 +1,30 @@
+from itertools import count
 from django.shortcuts import get_object_or_404, render
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
 from .models import Job
+from django.db.models import Count, Min, Max, Avg, Aggregate
 from .serializers import JobSerializer
+from .filters import JobsFilter
+from rest_framework.pagination import PageNumberPagination
+
 # Create your views here.
 
 @api_view(['GET',])
 def getAllJobs(request):
-    jobs = Job.objects.all()
-    serializer = JobSerializer(jobs, many=True)
-    return Response(serializer.data)
+    filterset = JobsFilter(request.GET, queryset=Job.objects.all().order_by('id'))
+    # jobs = Job.objects.all()
+    resPerPage = 3
+    count = filterset.qs.count()
+    paginator = PageNumberPagination()
+    paginator.page_size = resPerPage
+    queryset = paginator.paginate_queryset(filterset.qs, request)
+    serializer = JobSerializer(queryset, many=True)
+    return Response({
+        'count': count,
+        'resPerPage': resPerPage,
+        'jobs':serializer.data})
 
 @api_view(['GET'])
 def getJobById(request, pk):
@@ -49,8 +63,28 @@ def updateJob(request,pk):
     serializer = JobSerializer(job, many=False)
     return Response(serializer)
 
-@api_view(['Delete'])
+@api_view(['DELETE'])
 def deleteJob(request, pk):
     job = get_object_or_404(Job,id=pk)
     job.delete()
     return Response({'message':'Job is deleted successfully'}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def getTopicStats(request, topic):
+    args = {'title__icontains':topic}
+    jobs = Job.objects.filter(**args)
+    print("length - ", len(jobs))
+
+    if len(jobs)==0:
+        return Response({'massage': 'Not stats find for {topic}'.format(topic=topic )})
+
+    stats = jobs.aggregate(
+        total_jobs = Count('title'),
+        avg_positions = Avg('positions'),
+        avg_salary = Avg('salary'),
+        min_salary = Min('salary'),
+        max_salary=Max('salary')
+    )
+
+    return Response(stats)
